@@ -10,6 +10,8 @@ import argparse
 
 import numpy as np
 
+from utils import serialization
+
 
 _log = logging.getLogger(__name__)
 
@@ -26,6 +28,7 @@ def main():
     parser.add_argument("--discard", metavar="CATEGORY", help="discard auxiliary data ('config' or 'latents')")
     parser.add_argument("--filename-prefix", metavar="STRING", default="progan", help="set prefix of filenames")
     parser.add_argument("--tensorflow-seed", type=int, metavar="N", help="set tensorflow randomization seed")
+    parser.add_argument("--latents", metavar="FILE", help="read latents from FILE")
     args = parser.parse_args()
     logging.basicConfig(level=logging.__dict__[args.log_level])
     random_state = np.random.RandomState(args.seed)
@@ -33,6 +36,17 @@ def main():
     output_dir = args.output_dir or os.path.join(os.getcwd(), 'outputs', utils.timestamp())
     discards = tuple() if args.discard is None else args.discard.split(',')
     generator = imagery.Generator(network_pkl_pathname, random_state, args.image_shrink, discards)
+    if args.latents is not None:
+        with open(args.latents, 'r') as ifile:
+            latents_source = serialization.deserialize_numpy_array(ifile)
+        def get_only_latents(*args):
+            return latents_source
+        def get_latents_by_index(_, index):
+            return latents_source[index]
+        if args.num_images == 1:
+            generator.get_latents = get_only_latents
+        else:
+            generator.get_latents = get_latents_by_index
     config_dict = {}
     import tensorflow # defer these imports in case user just wanted --help
     import tfutil

@@ -29,6 +29,9 @@ class ImageGenerator(object):
         self.discards = frozenset(aux_discards)
         self.tf_initialized = False
         self.tf_config = {}
+        def generate_latents(Gs, *args, **kwargs):
+            return misc.random_latents(np.prod(self.grid_size), Gs, random_state=self.random_state)
+        self.get_latents = generate_latents
 
     def _write_aux(self, kind, output_dir, png_prefix, png_idx, data: np.ndarray):
         if not kind in self.discards:
@@ -61,7 +64,7 @@ class ImageGenerator(object):
         _G, _D, Gs = self._load_network(tf_session)
         for png_idx in range(num_pngs):
             _log.debug("%d / %d generating...", png_idx, num_pngs)
-            latents = misc.random_latents(np.prod(self.grid_size), Gs, random_state=self.random_state)
+            latents = self.get_latents(Gs, png_idx)
             labels = np.zeros([latents.shape[0], 0], np.float32)
             images = Gs.run(latents, labels, minibatch_size=self.minibatch_size, num_gpus=config.num_gpus, out_mul=127.5, out_add=127.5, out_shrink=self.image_shrink, out_dtype=np.uint8)
             image = images[0]

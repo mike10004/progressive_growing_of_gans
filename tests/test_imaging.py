@@ -1,5 +1,7 @@
 import numpy
+import tempfile
 import os
+import glob
 import os.path
 from unittest import TestCase
 from typing import Optional
@@ -39,5 +41,19 @@ class ImageGeneratorTest(TestCase):
     def test_load_network(self):
         if self.network_pkl_path is None:
             _log.info("skipping because network pickle file not found")
+            return
         g = imagery.Generator(self.network_pkl_path, self.random_state)
         g._load_network(_GLOBAL_TF_SESSION)
+
+    def test_generate_images(self):
+        if self.network_pkl_path is None:
+            _log.info("skipping because network pickle file not found")
+            return
+        g = imagery.Generator(self.network_pkl_path, self.random_state)
+        num_pngs = 3
+        with tempfile.TemporaryDirectory() as output_dir:
+            g.generate_images(_GLOBAL_TF_SESSION, output_dir, num_pngs)
+            png_files = glob.glob(os.path.join(output_dir, "*.png"))
+            self.assertEqual(num_pngs, len(png_files))
+
+

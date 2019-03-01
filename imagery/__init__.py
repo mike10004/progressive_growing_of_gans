@@ -29,7 +29,6 @@ class ImageGenerator(object):
         self.discards = frozenset(aux_discards)
         self.tf_initialized = False
         self.tf_config = {}
-        self.network = None
 
     def _write_aux(self, kind, output_dir, png_prefix, png_idx, data: np.ndarray):
         if not kind in self.discards:
@@ -37,32 +36,29 @@ class ImageGenerator(object):
             with open(output_pathname, 'w') as ofile:
                 serialization.serialize_numpy_array(data, ofile)
 
-    def _init_tf(self, output_dir):
-        if not self.tf_initialized:
-            import tfutil
-            tfutil.init_tf(self.tf_config)
-            self.tf_initialized = True
-            if _AUX_CONFIG not in self.discards:
-                try:
-                    config_export_pathname = os.path.join(output_dir, "config.txt")
-                    os.makedirs(os.path.dirname(config_export_pathname), exist_ok=True)
-                    with open(config_export_pathname, 'w') as fout:
-                        for k, v in sorted(config.__dict__.items()):
-                            if not k.startswith('_'):
-                                fout.write("%s = %s\n" % (k, str(v)))
-                except (IOError, ValueError, TypeError) as e:
-                    _log.info("error dumping config file: %s", e)
+    def _dump_config(self, output_dir):
+        if _AUX_CONFIG not in self.discards:
+            try:
+                config_export_pathname = os.path.join(output_dir, "config.txt")
+                os.makedirs(os.path.dirname(config_export_pathname), exist_ok=True)
+                with open(config_export_pathname, 'w') as fout:
+                    for k, v in sorted(config.__dict__.items()):
+                        if not k.startswith('_'):
+                            fout.write("%s = %s\n" % (k, str(v)))
+            except (IOError, ValueError, TypeError) as e:
+                _log.info("error dumping config file: %s", e)
 
-    def _load_network(self):
-        if self.network is None:
-            _log.debug("loading network from %s", self.network_pkl_pathname)
-            with open(self.network_pkl_pathname, 'rb') as ifile:
-                self.network = pickle.load(ifile)
-        return self.network
+    # noinspection PyUnusedLocal,PyUnresolvedReferences
+    def _load_network(self, tf_session: 'tensorflow.Session'):
+        # TODO fix unpickling so that the argument session is used instead of the default
+        _log.debug("loading network from %s", self.network_pkl_pathname)
+        with open(self.network_pkl_pathname, 'rb') as ifile:
+            return pickle.load(ifile)
 
-    def generate_images(self, output_dir: str, num_pngs: int=1, png_prefix: str="progan"):
-        self._init_tf(output_dir)
-        _G, _D, Gs = self._load_network()
+    # noinspection PyUnresolvedReferences
+    def generate_images(self, tf_session: 'tensorflow.Session', output_dir: str, num_pngs: int=1, png_prefix: str="progan"):
+        self._dump_config(output_dir)
+        _G, _D, Gs = self._load_network(tf_session)
         for png_idx in range(num_pngs):
             _log.debug("%d / %d generating...", png_idx, num_pngs)
             latents = misc.random_latents(np.prod(self.grid_size), Gs, random_state=self.random_state)

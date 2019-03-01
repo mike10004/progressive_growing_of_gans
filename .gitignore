@@ -1,0 +1,6 @@
+/networks/
+/.idea/
+/outputs/
+__pycache__/
+*.pyc
+/results/

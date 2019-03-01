@@ -7,13 +7,28 @@ import logging
 import os.path
 import utils
 import argparse
-
+import config
 import numpy as np
 
 from utils import serialization
 
 
 _log = logging.getLogger(__name__)
+_AUX_CONFIG = 'config'
+
+
+def _dump_config(output_dir, **kwargs):
+    try:
+        allconfig = dict(config.__dict__)
+        allconfig.update(kwargs)
+        config_export_pathname = os.path.join(output_dir, "config.txt")
+        os.makedirs(os.path.dirname(config_export_pathname), exist_ok=True)
+        with open(config_export_pathname, 'w') as fout:
+            for k, v in sorted(allconfig.items()):
+                if not k.startswith('_'):
+                    fout.write("%s = %s\n" % (k, str(v)))
+    except (IOError, ValueError, TypeError) as e:
+        _log.info("error dumping config file: %s", e)
 
 
 def main():
@@ -30,8 +45,11 @@ def main():
     parser.add_argument("--tensorflow-seed", type=int, metavar="N", help="set tensorflow randomization seed")
     parser.add_argument("--latents", metavar="FILE", help="read latents from FILE")
     args = parser.parse_args()
+    import tensorflow # defer these imports in case user just wanted --help
+    import tfutil
     logging.basicConfig(level=logging.__dict__[args.log_level])
-    random_state = np.random.RandomState(args.seed)
+    main_seed = args.seed if args.seed is not None else np.random.randint(1 << 31)
+    random_state = np.random.RandomState(main_seed)
     network_pkl_pathname = utils.find_network_pickle(args.network, args.networks_dir)
     output_dir = args.output_dir or os.path.join(os.getcwd(), 'outputs', utils.timestamp())
     discards = tuple() if args.discard is None else args.discard.split(',')
@@ -48,9 +66,14 @@ def main():
         else:
             generator.get_latents = get_latents_by_index
     config_dict = {}
-    import tensorflow # defer these imports in case user just wanted --help
-    import tfutil
-    tensorflow.set_random_seed(args.tensorflow_seed if args.tensorflow_seed is not None else np.random.randint(1 << 31))
+    tensorflow_seed = args.tensorflow_seed if args.tensorflow_seed is not None else np.random.randint(1 << 31)
+    _dump_config(output_dir,
+                 main_seed=main_seed,
+                 tensorflow_seed=tensorflow_seed,
+                 image_shrink=args.image_shrink,
+                 num_images=args.num_images,
+                 network=network_pkl_pathname)
+    tensorflow.set_random_seed(tensorflow_seed)
     assert tensorflow.get_default_session() is None, "only one tensorflow session allowed due to bad pickling"
     with tfutil.create_session(config_dict, False) as tf_session:
         generator.generate_images(tf_session, output_dir, args.num_images, args.filename_prefix)

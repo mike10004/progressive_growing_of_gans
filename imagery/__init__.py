@@ -13,7 +13,6 @@ from typing import Iterable
 _log = logging.getLogger(__name__)
 
 _SINGLE_IMAGE_GRID = (1, 1)
-_AUX_CONFIG = 'config'
 _AUX_LATENTS = 'latents'
 
 
@@ -39,18 +38,6 @@ class ImageGenerator(object):
             with open(output_pathname, 'w') as ofile:
                 serialization.serialize_numpy_array(data, ofile)
 
-    def _dump_config(self, output_dir):
-        if _AUX_CONFIG not in self.discards:
-            try:
-                config_export_pathname = os.path.join(output_dir, "config.txt")
-                os.makedirs(os.path.dirname(config_export_pathname), exist_ok=True)
-                with open(config_export_pathname, 'w') as fout:
-                    for k, v in sorted(config.__dict__.items()):
-                        if not k.startswith('_'):
-                            fout.write("%s = %s\n" % (k, str(v)))
-            except (IOError, ValueError, TypeError) as e:
-                _log.info("error dumping config file: %s", e)
-
     # noinspection PyUnusedLocal,PyUnresolvedReferences
     def _load_network(self, tf_session: 'tensorflow.Session'):
         # TODO fix unpickling so that the argument session is used instead of the default
@@ -60,7 +47,6 @@ class ImageGenerator(object):
 
     # noinspection PyUnresolvedReferences
     def generate_images(self, tf_session: 'tensorflow.Session', output_dir: str, num_pngs: int=1, png_prefix: str="progan"):
-        self._dump_config(output_dir)
         _G, _D, Gs = self._load_network(tf_session)
         for png_idx in range(num_pngs):
             _log.debug("%d / %d generating...", png_idx, num_pngs)
@@ -71,7 +57,7 @@ class ImageGenerator(object):
             output_pathname = os.path.join(output_dir, f"{png_prefix}-{png_idx}.png")
             os.makedirs(os.path.dirname(output_pathname), exist_ok=True)
             misc.save_image(image, output_pathname, drange=[0,255])
-            _log.debug("%d / %d generated: %s", png_idx, num_pngs, os.path.basename(output_pathname))
+            _log.debug("%d / %d generated: %s", png_idx + 1, num_pngs, os.path.basename(output_pathname))
             self._write_aux(_AUX_LATENTS, output_dir, png_prefix, png_idx, latents)
 
 
